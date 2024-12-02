@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Interaktive Karte mit Kommentaren und Fotos</title>
+
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+
+    <style>
+        /* Die Karte füllt den gesamten Bildschirm */
+        #map {
+            height: 100vh;
+        }
+
+        /* Das Popup-Kommentarfeld */
+        #commentPopup {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background-color: white;
+            padding: 20px;
+            border: 2px solid #ccc;
+            border-radius: 10px;
+            width: 300px;
+            z-index: 9999;
+            display: none;
+        }
+
+        /* Das Begrüßungspopup */
+        #welcomePopup, #infoPopup {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background-color: white;
+            padding: 20px;
+            border: 2px solid #ccc;
+            border-radius: 10px;
+            width: 300px;
+            z-index: 9999;
+        }
+
+        /* Der Schließen-Button für das Popup */
+        #closePopup, #closeInfoPopup, #closeWelcomePopup {
+            background-color: #f44336;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            cursor: pointer;
+            border-radius: 5px;
+            float: right;
+        }
+
+        /* Der Button zum Speichern des Kommentars */
+        #saveComment {
+            margin-top: 10px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            cursor: pointer;
+            border-radius: 5px;
+            width: 100%;
+        }
+
+        /* Kommentarfeld Textarea */
+        textarea {
+            width: 100%;
+            height: 100px;
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            resize: none;
+        }
+
+        /* Bildvorschau */
+        #photoPreview {
+            width: 100%;
+            max-height: 200px;
+            margin-top: 10px;
+            display: none;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Karte -->
+    <div id="map"></div>
+
+    <!-- Begrüßungspopup -->
+    <div id="welcomePopup">
+        <h3>Willkommen in der Schweiz!</h3>
+        <button id="closeWelcomePopup">OK</button>
+    </div>
+
+    <!-- Info-Popup (zweites Popup) -->
+    <div id="infoPopup">
+        <h3>Wohin bist du mit deinem Semesterticket schon hingereist?</h3>
+        <p>Markiere die Orte, schreibe deine Eindrücke auf und lade gerne ein paar Fotos hoch. Viel Spaß!</p>
+        <button id="closeInfoPopup">OK</button>
+    </div>
+
+    <!-- Kommentarfeld (Popup) -->
+    <div id="commentPopup">
+        <button id="closePopup">X</button>
+        <h3>Kommentar hinzufügen</h3>
+        <textarea id="comment" placeholder="Dein Kommentar..."></textarea><br>
+        
+        <!-- Foto hinzufügen -->
+        <input type="file" id="photo" accept="image/*"><br>
+        <img id="photoPreview" src="" alt="Foto-Vorschau"><br>
+
+        <button id="saveComment">Kommentar speichern</button>
+    </div>
+
+    <!-- Leaflet JS -->
+    <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+    <script>
+        // Initialisierung der Karte
+        var map = L.map('map').setView([46.8182, 8.2275], 8);  // Die Schweiz zentrieren
+
+        // OpenStreetMap als Karten-Layer hinzufügen
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+        }).addTo(map);
+
+        var currentMarker = null;
+
+        // Zeige das Begrüßungspopup an, wenn die Seite geladen wird
+        window.onload = function() {
+            document.getElementById('welcomePopup').style.display = 'block';
+        };
+
+        // Funktion zum Schließen des Begrüßungspopups
+        document.getElementById('closeWelcomePopup').addEventListener('click', function() {
+            document.getElementById('welcomePopup').style.display = 'none';
+            document.getElementById('infoPopup').style.display = 'block'; // Zeige das zweite Popup
+        });
+
+        // Funktion zum Schließen des Info-Popups
+        document.getElementById('closeInfoPopup').addEventListener('click', function() {
+            document.getElementById('infoPopup').style.display = 'none';
+        });
+
+        // Funktion zum Schließen des Kommentarfeldes
+        document.getElementById('closePopup').addEventListener('click', function() {
+            document.getElementById('commentPopup').style.display = 'none';
+        });
+
+        // Funktion zum Anzeigen der Bildvorschau
+        document.getElementById('photo').addEventListener('change', function(event) {
+            var file = event.target.files[0];
+            if (file) {
+                var reader = new FileReader();
+                reader.onload = function(e) {
+                    document.getElementById('photoPreview').src = e.target.result;
+                    document.getElementById('photoPreview').style.display = 'block';
+                };
+                reader.readAsDataURL(file);
+            } else {
+                document.getElementById('photoPreview').style.display = 'none';
+            }
+        });
+
+        // Funktion zum Speichern des Kommentars und Fotos
+        document.getElementById('saveComment').addEventListener('click', function() {
+            var comment = document.getElementById('comment').value;
+            var photo = document.getElementById('photo').files[0];
+
+            // Bild als DataURL (falls vorhanden) umwandeln
+            var photoUrl = '';
+            if (photo) {
+                var reader = new FileReader();
+                reader.onloadend = function() {
+                    photoUrl = reader.result;
+                    // Füge Marker mit Kommentar und Foto hinzu
+                    currentMarker.bindPopup(`
+                        <b>Kommentar:</b><br>${comment}<br><br>
+                        <b>Foto:</b><br><img src="${photoUrl}" style="max-width: 200px;"/>
+                    `).openPopup();
+                };
+                reader.readAsDataURL(photo);  // Bild als DataURL laden
+            } else {
+                // Wenn kein Bild, dann nur den Kommentar anzeigen
+                currentMarker.bindPopup(`<b>Kommentar:</b><br>${comment}`).openPopup();
+            }
+
+            // Verstecke das Popup
+            document.getElementById('commentPopup').style.display = 'none';
+        });
+
+        // Klick-Event für das Setzen eines Markers auf der Karte
+        map.on('click', function(e) {
+            var lat = e.latlng.lat;
+            var lng = e.latlng.lng;
+
+            // Marker hinzufügen
+            currentMarker = L.marker([lat, lng]).addTo(map);
+            
+            // Zeige das Kommentarfeld
+            document.getElementById('commentPopup').style.display = 'block';
+        });
+    </script>
+</body>
+</html>
